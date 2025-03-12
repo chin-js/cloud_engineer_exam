@@ -337,6 +337,7 @@ module "gke_private" {
       max_count    = 2
     }
   ]
+  depends_on              = [ module.vpc ]
 }
 
 
