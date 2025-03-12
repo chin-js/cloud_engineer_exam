@@ -229,7 +229,11 @@ module "service_account" {
   project_id                    = var.project_id
   service_account_name          = "elasticsearch-sa"
   service_account_display_name  = "Service Account for Elasticsearch vm"
-  roles                         = ["roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/storage.objectViewer"]
+  roles                         = [ "roles/logging.logWriter", 
+                                    "roles/monitoring.metricWriter", 
+                                    "roles/storage.objectViewer", 
+                                    "roles/compute.instanceAdmin", 
+                                    "roles/iam.serviceAccountUser"]
 }
 module "vm_instances_elasticsearch" {
   source                        = "../../modules/compute/compute_instance"
