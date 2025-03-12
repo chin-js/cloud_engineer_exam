@@ -94,7 +94,7 @@ The following APIs will be enabled for the project:
 
 ## 1. Copy Ansible Playbook from GCS
 ```sh
-gsutil cp -r gs://tfstate-gcs/ansible-elk .
+git clone https://github.com/chin-js/cloud_engineer_exam.git
 ```
 
 ## 2. Generate SSH Key Pair
