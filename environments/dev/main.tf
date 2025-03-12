@@ -152,7 +152,7 @@ module "firewall_rules" {
         target_tags             = ["ssh-iap"]
         allow = [{
           protocol = "tcp"
-          ports    = ["22","5601"]
+          ports    = ["22","5601","80"]
         }]
       },
       {
