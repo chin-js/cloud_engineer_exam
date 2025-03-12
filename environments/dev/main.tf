@@ -1,4 +1,4 @@
-  /****************************************** test
+  /******************************************
   CIS_Google_Cloud_Platform_Foundation_Benchmark_v3.0.0
   3 Networking
   [/] 3.1 Ensure That the Default Network Does Not Exist in a Project
@@ -41,7 +41,6 @@ module "enable_apis" {
     "sqladmin.googleapis.com",
     "container.googleapis.com"
   ]
-
 }
 
 /******************************************
@@ -102,36 +101,36 @@ module "subnets" {
   secondary_ranges = {
       private-subnet-gke = [
           {
-              range_name    = "private-subnet-gke-pods"
-              ip_cidr_range = "10.100.0.0/16"
+              range_name        = "private-subnet-gke-pods"
+              ip_cidr_range     = "10.100.0.0/16"
           },
           {
-              range_name    = "private-subnet-gke-svc"
-              ip_cidr_range = "10.101.0.0/20"
+              range_name        = "private-subnet-gke-svc"
+              ip_cidr_range     = "10.101.0.0/20"
           }
       ]
   }
 
-  depends_on                                = [ module.vpc ]
+  depends_on = [ module.vpc ]
 }
 
 /******************************************
 	routes configuration
  *****************************************/
 module "routes" {
-  source                                    = "../../modules/network/routes"
-  network_name                              = module.vpc.network_name
-  project_id                                = var.project_id
+  source                        = "../../modules/network/routes"
+  network_name                  = module.vpc.network_name
+  project_id                    = var.project_id
   routes = [
     {
-      name              = "rt-internet-default"
-      description       = "Tag based route through IGW to access internet"
-      destination_range = "0.0.0.0/0"
-      next_hop_internet = "true"
-      priority          = "1000"
+      name                      = "rt-internet-default"
+      description               = "Tag based route through IGW to access internet"
+      destination_range         = "0.0.0.0/0"
+      next_hop_internet         = "true"
+      priority                  = "1000"
     }
   ]
-  depends_on                                = [ module.vpc ]
+  depends_on = [ module.vpc ]
 }
 
 
@@ -149,7 +148,7 @@ module "firewall_rules" {
         description             = null
         direction               = "INGRESS"
         priority                = 1000
-        ranges           = ["35.235.240.0/20"]
+        ranges                  = ["35.235.240.0/20"]
         target_tags             = ["ssh-iap"]
         allow = [{
           protocol = "tcp"
@@ -192,29 +191,22 @@ module "firewall_rules" {
 # 	nat configuration
 #  *****************************************/
 module "cloud_nat" {
-  source     = "../../modules/network/nat"
-  project_id = var.project_id
-  region     = var.region
-  network    = module.vpc.network_name
-  name       = "exam"
-
-  # subnetworks = [
-  #   {
-  #     name                    = "public-subnet"
-  #     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
-  #   }
-  # ]
+  source                = "../../modules/network/nat"
+  project_id            = var.project_id
+  region                = var.region
+  network               = module.vpc.network_name
+  name                  = "exam"
 }
 
 # /******************************************
 # 	google private access configuration
 #  *****************************************/
 module "private_access" {
-  source     = "../../modules/network/private_access"
-  project_id = var.project_id
-  network    = module.vpc.network_name
-  googleapis_zone_name = "private-googleapis"
-  gcr_io_zone_name = "private-gcr-io"
+  source                = "../../modules/network/private_access"
+  project_id            = var.project_id
+  network               = module.vpc.network_name
+  googleapis_zone_name  = "private-googleapis"
+  gcr_io_zone_name      = "private-gcr-io"
 }
 
 
@@ -222,14 +214,127 @@ module "private_access" {
 	GCS configuration
  *****************************************/
 module "gcs_bucket" {
-  source     = "../../modules/storage/gcs"
-  project_id = var.project_id
-  bucket_name = "cloud-engineer-exam-bucket"
-  location    = var.region
-  storage_class = "STANDARD"
-  force_destroy = true
+  source                      = "../../modules/storage/gcs"
+  project_id                  = var.project_id
+  bucket_name                 = "cloud-engineer-exam-bucket"
+  location                    = var.region
+  storage_class               = "STANDARD"
+  force_destroy               = true
   uniform_bucket_level_access = true
 }
+
+
+module "service_account" {
+  source                        = "../../modules/project/service_account"
+  project_id                    = var.project_id
+  service_account_name          = "elasticsearch-sa"
+  service_account_display_name  = "Service Account for Elasticsearch vm"
+  roles                         = ["roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/storage.objectViewer"]
+}
+module "vm_instances_elasticsearch" {
+  source                        = "../../modules/compute/compute_instance"
+  count                         = 3
+
+  project_id                    = var.project_id
+  instance_name                 = "es0${count.index + 1}"
+  zone                          = var.zones[count.index % length(var.zones)]
+  machine_type                  = "e2-medium"
+  image                         = "ubuntu-os-cloud/ubuntu-2204-lts"
+  disk_size_os                  = 50
+  network                       = module.vpc.network_name
+  subnetwork                    = module.subnets.subnet_names[0]
+  network_ip                    = cidrhost(module.subnets.subnet_cidr_ips[0], count.index + 2)
+  tags                          = ["ssh-iap","elasticsearch"]
+  allow_stopping_for_update     = true
+  service_account_email         = module.service_account.service_account_email
+}
+
+module "vm_instances_ansible" {
+  source                        = "../../modules/compute/compute_instance"
+  count                         = 1
+  project_id                    = var.project_id
+  instance_name                 = "ansible"
+  zone                          = var.zones[count.index % length(var.zones)]
+  machine_type                  = "e2-medium"
+  image                         = "ubuntu-os-cloud/ubuntu-2204-lts"
+  disk_size_os                  = 50
+  network                       = module.vpc.network_name
+  subnetwork                    = module.subnets.subnet_names[0]
+  network_ip                    = "10.0.1.100"
+  tags                          = ["ssh-iap","ansible"]
+  allow_stopping_for_update     = true
+  metadata = {
+    startup-script = <<-EOT
+      #!/bin/bash
+      sudo apt-get update
+      sudo apt-get install -y ansible
+    EOT
+  }
+  service_account_email = module.service_account.service_account_email
+}
+
+module "private_service_access_postgesql" {
+  source              = "../../modules/network/private_service_access"
+  project_id          = var.project_id
+  vpc_network         = module.vpc.network_name
+  address             = "10.200.0.0"
+  deletion_policy     = "ABANDON"
+  depends_on          = [ module.vpc ]
+}
+
+module "postgres" {
+  source              = "../../modules/database/postgresql"
+  instance_name       = "exam-postgres"
+  region              = var.region
+  tier                = "db-g1-small"
+  availability_type   = "REGIONAL"
+  public_ip_enabled   = false
+  private_network     = module.vpc.network_self_link
+  deletion_protection = false
+  depends_on          = [ module.private_service_access_postgesql ]
+}
+
+module "redis" {
+  source                  = "../../modules/database/redis"
+  name                    = "exam-redis"
+  project_id              = var.project_id
+  region                  = var.region
+  location_id             = var.zones[0]
+  alternative_location_id = var.zones[1]
+  redis_version           = "REDIS_7_0"
+  tier                    = "STANDARD_HA"
+  auth_enabled            = true
+  connect_mode            = "PRIVATE_SERVICE_ACCESS"
+  transit_encryption_mode = "SERVER_AUTHENTICATION"
+  replica_count           = 1
+  read_replicas_mode      = "READ_REPLICAS_ENABLED"
+  authorized_network      = module.vpc.network_id
+  memory_size_gb          = 5
+  depends_on              = [ module.vpc ]
+
+}
+
+module "gke_private" {
+  source                  = "../../modules/compute/gke"
+  project_id              = var.project_id
+  region                  = var.region
+  network                 = module.vpc.network_name
+  subnetwork              = module.subnets.subnet_names[2]
+  cluster_name            = "private-gke-cluster"
+  master_ipv4_cidr        = "172.16.0.0/28"
+  pods_ipv4_cidr          = module.subnets.secondary_subnet_cidr_ips[2][0].range_name
+  services_ipv4_cidr      = module.subnets.secondary_subnet_cidr_ips[2][1].range_name
+  node_pools = [
+    {
+      name         = "pool-1"
+      machine_type = "e2-medium"
+      node_count   = 1
+      min_count    = 1
+      max_count    = 2
+    }
+  ]
+}
+
 
 # # /******************************************
 # # 	Memorystore - Redis Cluster configuration
@@ -300,129 +405,3 @@ module "gcs_bucket" {
 #     module.private_service_access_alloydb
 #   ]
 # }
-
-
-module "service_account" {
-  source                      = "../../modules/project/service_account"
-  project_id                  = var.project_id
-  service_account_name        = "elasticsearch-sa"
-  service_account_display_name = "Service Account for Elasticsearch vm"
-  roles                       = ["roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/storage.objectViewer"]
-}
-
-
-# module "vm_instances_elasticsearch" {
-#   source          = "../../modules/compute/compute_instance"
-#   count           = 3
-
-#   project_id      = var.project_id
-#   instance_name   = "es0${count.index + 1}"
-#   zone            = var.zones[count.index % length(var.zones)]
-#   machine_type    = "e2-medium"
-#   image           = "ubuntu-os-cloud/ubuntu-2204-lts"
-#   disk_size_os    = 50
-#   # disk_size_data  = 100
-#   network         = module.vpc.network_name
-#   subnetwork      = module.subnets.subnet_names[0]
-#   network_ip      = cidrhost(module.subnets.subnet_cidr_ips[0], count.index + 2)
-#   tags            = ["ssh-iap","elasticsearch"]
-#   allow_stopping_for_update = true
-#   service_account_email = module.service_account.service_account_email
-# }
-
-module "vm_instances_ansible" {
-  source          = "../../modules/compute/compute_instance"
-  count           = 1
-
-  project_id      = var.project_id
-  instance_name   = "ansible"
-  zone            = var.zones[count.index % length(var.zones)]
-  machine_type    = "e2-medium"
-  image           = "ubuntu-os-cloud/ubuntu-2204-lts"
-  disk_size_os    = 50
-  network         = module.vpc.network_name
-  subnetwork      = module.subnets.subnet_names[0]
-  network_ip      = "10.0.1.100"
-  tags            = ["ssh-iap","ansible"]
-  allow_stopping_for_update = true
-  metadata = {
-    startup-script = <<-EOT
-      #!/bin/bash
-      sudo apt-get update
-      sudo apt-get install -y ansible
-    EOT
-  }
-  service_account_email = module.service_account.service_account_email
-}
-
-
-
-module "private_service_access_postgesql" {
-  source  = "../../modules/network/private_service_access"
-
-  project_id      = var.project_id
-  vpc_network     = module.vpc.network_name
-  address         = "10.200.0.0"
-  deletion_policy = "ABANDON"
-  depends_on = [ module.vpc ]
-}
-
-module "postgres" {
-  source             = "../../modules/database/postgresql"
-  instance_name      = "exam-postgres"
-  region             = var.region
-  tier               = "db-g1-small"
-  availability_type  = "REGIONAL"
-  public_ip_enabled  = false
-  private_network    = module.vpc.network_self_link
-  deletion_protection = false
-  depends_on = [ module.private_service_access_postgesql ]
-}
-
-
-module "redis" {
-  source  = "../../modules/database/redis"
-
-  name                    = "exam-redis"
-  project_id              = var.project_id
-  region                  = var.region
-  location_id             = var.zones[0]
-  alternative_location_id = var.zones[1]
-  redis_version           = "REDIS_7_0"
-  tier                    = "STANDARD_HA"
-  auth_enabled            = true
-  connect_mode            = "PRIVATE_SERVICE_ACCESS"
-  transit_encryption_mode = "SERVER_AUTHENTICATION"
-  replica_count           = 1
-  read_replicas_mode      = "READ_REPLICAS_ENABLED"
-  authorized_network      = module.vpc.network_id
-  memory_size_gb          = 5
-
-  depends_on = [ module.vpc ]
-
-}
-
-module "gke_private" {
-  source      = "../../modules/compute/gke"
-  project_id  = var.project_id
-  region      = var.region
-  network     = module.vpc.network_name
-  subnetwork  = module.subnets.subnet_names[2]
-  cluster_name = "private-gke-cluster"
-  master_ipv4_cidr = "172.16.0.0/28"
-
-  pods_ipv4_cidr     = module.subnets.secondary_subnet_cidr_ips[2][0].range_name
-  services_ipv4_cidr = module.subnets.secondary_subnet_cidr_ips[2][1].range_name
-
-  node_pools = [
-    {
-      name         = "pool-1"
-      machine_type = "e2-medium"
-      node_count   = 1
-      min_count    = 1
-      max_count    = 2
-    }
-  ]
-}
-
-
