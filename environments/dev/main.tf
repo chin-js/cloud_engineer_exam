@@ -314,7 +314,7 @@ module "redis" {
   read_replicas_mode      = "READ_REPLICAS_ENABLED"
   authorized_network      = module.vpc.network_id
   memory_size_gb          = 5
-  depends_on              = [ module.vpc ]
+  depends_on              = [ module.vpc, module.private_service_access_postgesql ]
 
 }
 

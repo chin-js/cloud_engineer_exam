@@ -1,5 +1,5 @@
 gsutil cp -r gs://tfstate-gcs/ansible-elk .
-
+git clone https://github.com/chin-js/cloud_engineer_exam.git
 
 ssh-keygen -t rsa
 
