@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: exam
+  name: exam
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: exam
+  template:
+    metadata:
+      labels:
+        app: exam
+    spec:
+      containers:
+      - image: nginx:latest
+        name: nginx
+        resources:
+          requests:
+            cpu: 100m
+            memory: "128Mi"
+          limits:
+            cpu: 200m
+            memory: "256Mi" 

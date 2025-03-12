@@ -1,0 +1,10 @@
+# Local Terraform files
+*.tfstate
+*.tfstate.*
+
+# .terraform directories
+.terraform/
+
+.DS_Store
+
+credentials.json

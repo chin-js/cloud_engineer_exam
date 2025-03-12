@@ -1,0 +1,82 @@
+- name: Install ElasticSearch 8 on Ubuntu 22.04 LTS
+  apt:
+    update_cache: yes
+    name: elasticsearch
+    state: present
+
+- name: Config Elasticsearch
+  blockinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    block: "{{ elasticsearch_config }}"
+    marker: "# {mark} Elasticsearch configuration"
+    backup: yes
+  when: inventory_hostname in groups["master_elk_server"]
+
+- name: Start Elasticsearch service group master-elk-server
+  service:
+    name: elasticsearch
+    enabled: yes
+    state: started
+  when: inventory_hostname in groups["master_elk_server"]
+
+- name: Run password reset
+  command: "/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic -i"
+  args:
+    stdin: "y\n{{ elastic_password }}\n{{ elastic_password }}\n"
+  when: inventory_hostname in groups["master_elk_server"]
+
+- name: Display the elastic cluster password.
+  debug:
+    msg: "New password: {{ elastic_password }}"
+  when: inventory_hostname in groups["master_elk_server"]
+
+- name: Generate enrollment token for Elasticsearch nodes.
+  shell: /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
+  register: elastic_token_node
+  changed_when: elastic_token_node.stdout_lines[0] != 'password changed'
+  when: inventory_hostname in groups["master_elk_server"]
+
+- name: Keep Elasticsearch tokens on different servers.
+  copy:
+    content: "{{ elastic_token_node.stdout }}"
+    dest: /etc/elasticsearch/elastic_token_node.txt
+  loop: "{{ groups['join_elk_server'] }}"
+  when: 
+    - inventory_hostname in groups["master_elk_server"]
+    - inventory_hostname != item
+  delegate_to: "{{ item }}" 
+
+- name: set a variable using a file.
+  shell: cat /etc/elasticsearch/elastic_token_node.txt
+  register: elastic_token
+  when: inventory_hostname in groups["join_elk_server"]
+
+- name: Register/Enrolling elasticsearch
+  shell: echo "y" | /usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token {{ elastic_token.stdout }} 
+  when: inventory_hostname in groups["join_elk_server"]
+
+- name: Delete line discovery.seed_hosts
+  lineinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    regexp: '^discovery.seed_hosts:'
+    line: '# delete line discovery.seed_hosts'
+  when: inventory_hostname in groups["join_elk_server"]
+
+- name: Config Elasticsearch
+  blockinfile:
+    path: /etc/elasticsearch/elasticsearch.yml
+    block: "{{ elasticsearch_config }}"
+    marker: "# {mark} Elasticsearch configuration"
+    backup: yes
+  when: inventory_hostname in groups["join_elk_server"]
+  
+- name: Reload systemd daemon on Elasticsearch group join-elk-server
+  command: systemctl daemon-reload
+  when: inventory_hostname in groups["join_elk_server"]
+
+- name: Start Elasticsearch service group join-elk-server
+  service:
+    name: elasticsearch
+    enabled: yes
+    state: started
+  when: inventory_hostname in groups["join_elk_server"]

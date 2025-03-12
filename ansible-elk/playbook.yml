@@ -1,0 +1,11 @@
+- name: Start Provision ELK Stack
+  hosts: elk_server
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/elk.yml
+  roles:
+    - common
+    - elasticsearch
+    - kibana
+    - metricbeat

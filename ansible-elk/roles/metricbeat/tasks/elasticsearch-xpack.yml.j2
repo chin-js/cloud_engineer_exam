@@ -1,0 +1,10 @@
+# Module: elasticsearch
+# Docs: https://www.elastic.co/guide/en/beats/metricbeat/8.17/metricbeat-module-elasticsearch.html
+
+- module: elasticsearch
+  xpack.enabled: true
+  period: 10s
+  hosts: ["https://10.0.1.2:9200", "https://10.0.1.3:9200", "https://10.0.1.4:9200"]
+  ssl.verification_mode: none
+  username: "elastic"
+  password: "passw0rd"

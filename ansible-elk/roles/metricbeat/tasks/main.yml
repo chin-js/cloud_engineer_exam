@@ -1,0 +1,46 @@
+- name: Install Metricbeat
+  apt:
+    update_cache: yes
+    name: metricbeat
+    state: present
+  when: inventory_hostname in groups["elk_server"]
+
+- name: Generate Metricbeat configuration file
+  template:
+    src: metricbeat.yml.j2
+    dest: /etc/metricbeat/metricbeat.yml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure Metricbeat
+  blockinfile:
+    path: /etc/metricbeat/metricbeat.yml
+    block: "{{ metricbeat_config }}"
+    marker: "# {mark} Metricbeat configuration"
+    backup: yes
+  when: inventory_hostname in groups["elk_server"]
+
+- name: Enable Metricbeat modules
+  command: "metricbeat modules enable kibana elasticsearch-xpack"
+  when: inventory_hostname in groups["elk_server"]
+
+# - name: Setup Metricbeat modules
+#   command: "metricbeat setup"
+#   when: inventory_hostname in groups["elk_server"]
+
+- name: Generate Metricbeat configuration file
+  template:
+    src: elasticsearch-xpack.yml.j2
+    dest: /etc/metricbeat/modules.d/elasticsearch-xpack.yml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable and Start Metricbeat Service
+  service:
+    name: metricbeat
+    enabled: yes
+    state: started
+  when: inventory_hostname in groups["elk_server"]
+
