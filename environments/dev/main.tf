@@ -1,4 +1,4 @@
-  /******************************************
+  /****************************************** test
   CIS_Google_Cloud_Platform_Foundation_Benchmark_v3.0.0
   3 Networking
   [/] 3.1 Ensure That the Default Network Does Not Exist in a Project
